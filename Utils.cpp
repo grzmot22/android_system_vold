@@ -270,12 +270,10 @@ status_t ForkExecvp(const std::vector<std::string>& args, security_context_t con
 
     if (setexeccon(context)) {
         LOG(ERROR) << "Failed to setexeccon";
-        abort();
     }
     status_t res = android_fork_execvp(argc, argv, NULL, false, true);
     if (setexeccon(nullptr)) {
         LOG(ERROR) << "Failed to setexeccon";
-        abort();
     }
 
     free(argv);
