@@ -164,9 +164,9 @@ status_t VolumeBase::create() {
     CHECK(!mCreated);
 
     mCreated = true;
+    status_t res = doCreate();
     notifyEvent(ResponseCode::VolumeCreated,
             StringPrintf("%d \"%s\" \"%s\"", mType, mDiskId.c_str(), mPartGuid.c_str()));
-    status_t res = doCreate();
     setState(State::kUnmounted);
     return res;
 }
@@ -212,7 +212,7 @@ status_t VolumeBase::mount() {
     return res;
 }
 
-status_t VolumeBase::unmount(bool detach /* = false */) {
+status_t VolumeBase::unmount() {
     if (mState != State::kMounted) {
         LOG(WARNING) << getId() << " unmount requires state mounted";
         return -EBUSY;
@@ -227,7 +227,7 @@ status_t VolumeBase::unmount(bool detach /* = false */) {
     }
     mVolumes.clear();
 
-    status_t res = doUnmount(detach);
+    status_t res = doUnmount();
     setState(State::kUnmounted);
     return res;
 }
