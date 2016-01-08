@@ -41,12 +41,19 @@ using android::base::StringPrintf;
 namespace android {
 namespace vold {
 
+#ifdef MINIVOLD
+static const char* kFusePath = "/sbin/sdcard";
+#else
 static const char* kFusePath = "/system/bin/sdcard";
+#endif
 
 static const char* kAsecPath = "/mnt/secure/asec";
 
-PublicVolume::PublicVolume(dev_t device) :
-        VolumeBase(Type::kPublic), mDevice(device), mFusePid(0) {
+PublicVolume::PublicVolume(dev_t device, const std::string& nickname,
+                const std::string& fstype /* = "" */,
+                const std::string& mntopts /* = "" */) :
+        VolumeBase(Type::kPublic), mDevice(device), mFusePid(0),
+        mFsType(fstype), mFsLabel(nickname), mMntOpts(mntopts) {
     setId(StringPrintf("public:%u_%u", major(device), minor(device)));
     mDevPath = StringPrintf("/dev/block/vold/%s", getId().c_str());
 }
@@ -87,6 +94,9 @@ status_t PublicVolume::initAsecStage() {
 }
 
 status_t PublicVolume::doCreate() {
+    if (mFsLabel.size() > 0) {
+        notifyEvent(ResponseCode::VolumeFsLabelChanged, mFsLabel);
+    }
     return CreateDeviceNode(mDevPath, mDevice);
 }
 
@@ -109,11 +119,18 @@ status_t PublicVolume::doMount() {
         stableName = mFsUuid;
     }
 
+#ifdef MINIVOLD
+    // In recovery, directly mount to /storage/* since we have no fuse daemon
+    mRawPath = StringPrintf("/storage/%s", stableName.c_str());
+    mFuseDefault = StringPrintf("/storage/%s", stableName.c_str());
+    mFuseRead = StringPrintf("/storage/%s", stableName.c_str());
+    mFuseWrite = StringPrintf("/storage/%s", stableName.c_str());
+#else
     mRawPath = StringPrintf("/mnt/media_rw/%s", stableName.c_str());
-
     mFuseDefault = StringPrintf("/mnt/runtime/default/%s", stableName.c_str());
     mFuseRead = StringPrintf("/mnt/runtime/read/%s", stableName.c_str());
     mFuseWrite = StringPrintf("/mnt/runtime/write/%s", stableName.c_str());
+#endif
 
     setInternalPath(mRawPath);
     if (getMountFlags() & MountFlags::kVisible) {
@@ -153,7 +170,7 @@ status_t PublicVolume::doMount() {
         ret = exfat::Mount(mDevPath, mRawPath, false, false, false,
                 AID_MEDIA_RW, AID_MEDIA_RW, 0007);
     } else if (mFsType == "ext4") {
-        ret = ext4::Mount(mDevPath, mRawPath, false, false, true);
+        ret = ext4::Mount(mDevPath, mRawPath, false, false, true, mMntOpts);
     } else if (mFsType == "f2fs") {
         ret = f2fs::Mount(mDevPath, mRawPath);
     } else if (mFsType == "ntfs") {
@@ -169,6 +186,11 @@ status_t PublicVolume::doMount() {
         PLOG(ERROR) << getId() << " failed to mount " << mDevPath;
         return -EIO;
     }
+
+#ifdef MINIVOLD
+    // In recovery, don't setup ASEC or FUSE
+    return OK;
+#endif
 
     if (getMountFlags() & MountFlags::kPrimary) {
         initAsecStage();
@@ -210,19 +232,22 @@ status_t PublicVolume::doMount() {
     return OK;
 }
 
-status_t PublicVolume::doUnmount() {
+status_t PublicVolume::doUnmount(bool detach /* = false */) {
     if (mFusePid > 0) {
         kill(mFusePid, SIGTERM);
         TEMP_FAILURE_RETRY(waitpid(mFusePid, nullptr, 0));
         mFusePid = 0;
     }
 
+#ifndef MINIVOLD
     ForceUnmount(kAsecPath);
 
     ForceUnmount(mFuseDefault);
     ForceUnmount(mFuseRead);
     ForceUnmount(mFuseWrite);
-    ForceUnmount(mRawPath);
+#endif
+
+    ForceUnmount(mRawPath, detach);
 
     rmdir(mFuseDefault.c_str());
     rmdir(mFuseRead.c_str());

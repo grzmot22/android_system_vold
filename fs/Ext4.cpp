@@ -54,9 +54,15 @@ namespace android {
 namespace vold {
 namespace ext4 {
 
+#ifdef MINIVOLD
+static const char* kResizefsPath = "/sbin/resize2fs";
+static const char* kMkfsPath = "/sbin/mke2fs";
+static const char* kFsckPath = "/sbin/e2fsck";
+#else
 static const char* kResizefsPath = "/system/bin/resize2fs";
 static const char* kMkfsPath = "/system/bin/make_ext4fs";
 static const char* kFsckPath = "/system/bin/e2fsck";
+#endif
 
 static const char* privatePathPrefix = "/mnt/expand/";
 
@@ -128,12 +134,13 @@ status_t Check(const std::string& source, const std::string& target, bool truste
 }
 
 status_t Mount(const std::string& source, const std::string& target, bool ro,
-        bool remount, bool executable) {
+        bool remount, bool executable, const std::string& opts /* = "" */) {
     int rc;
     unsigned long flags;
 
     const char* c_source = source.c_str();
     const char* c_target = target.c_str();
+    const char* c_opts = opts.c_str();
 
     flags = MS_NOATIME | MS_NODEV | MS_NOSUID;
 
@@ -146,7 +153,7 @@ status_t Mount(const std::string& source, const std::string& target, bool ro,
     flags |= (ro ? MS_RDONLY : 0);
     flags |= (remount ? MS_REMOUNT : 0);
 
-    rc = mount(c_source, c_target, "ext4", flags, NULL);
+    rc = mount(c_source, c_target, "ext4", flags, c_opts);
 
     if (rc && errno == EROFS) {
         SLOGE("%s appears to be a read only filesystem - retrying mount RO", c_source);

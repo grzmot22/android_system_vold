@@ -43,7 +43,11 @@ using android::base::StringPrintf;
 namespace android {
 namespace vold {
 
+#ifdef MINIVOLD
+static const char* kSgdiskPath = "/sbin/sgdisk";
+#else
 static const char* kSgdiskPath = "/system/bin/sgdisk";
+#endif
 static const char* kSgdiskToken = " \t\n";
 
 static const char* kSysfsMmcMaxMinors = "/sys/module/mmcblk/parameters/perdev_minors";
@@ -131,8 +135,10 @@ status_t Disk::destroy() {
     return OK;
 }
 
-void Disk::createPublicVolume(dev_t device) {
-    auto vol = std::shared_ptr<VolumeBase>(new PublicVolume(device));
+void Disk::createPublicVolume(dev_t device,
+                const std::string& fstype /* = "" */,
+                const std::string& mntopts /* = "" */) {
+    auto vol = std::shared_ptr<VolumeBase>(new PublicVolume(device, mNickname, fstype, mntopts));
     if (mJustPartitioned) {
         LOG(DEBUG) << "Device just partitioned; silently formatting";
         vol->setSilent(true);

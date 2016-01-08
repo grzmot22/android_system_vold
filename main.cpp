@@ -45,11 +45,15 @@ static void parse_args(int argc, char** argv);
 
 struct fstab *fstab;
 
+#ifdef MINIVOLD
+extern struct selabel_handle *sehandle;
+#else
 struct selabel_handle *sehandle;
+#endif
 
 using android::base::StringPrintf;
 
-int main(int argc, char** argv) {
+extern "C" int vold_main(int argc, char** argv) {
     setenv("ANDROID_LOG_TAGS", "*:v", 1);
     android::base::InitLogging(argv, android::base::LogdLogger(android::base::SYSTEM));
 
@@ -222,6 +226,14 @@ static int process_config(VolumeManager *vm) {
     for (int i = 0; i < fstab->num_entries; i++) {
         if (fs_mgr_is_voldmanaged(&fstab->recs[i])) {
             std::string sysPattern(fstab->recs[i].blk_device);
+            std::string fstype;
+            if (fstab->recs[i].fs_type) {
+                fstype = fstab->recs[i].fs_type;
+            }
+            std::string mntopts;
+            if (fstab->recs[i].fs_options) {
+                mntopts = fstab->recs[i].fs_options;
+            }
             std::string nickname(fstab->recs[i].label);
             int partnum = fstab->recs[i].partnum;
             int flags = 0;
@@ -239,7 +251,8 @@ static int process_config(VolumeManager *vm) {
             }
 
             vm->addDiskSource(std::shared_ptr<VolumeManager::DiskSource>(
-                    new VolumeManager::DiskSource(sysPattern, nickname, partnum, flags)));
+                    new VolumeManager::DiskSource(sysPattern, nickname, partnum, flags,
+                                    fstype, mntopts)));
         }
     }
     property_set("vold.has_adoptable", has_adoptable ? "1" : "0");
