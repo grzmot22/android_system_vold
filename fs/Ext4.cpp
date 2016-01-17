@@ -64,8 +64,6 @@ static const char* kMkfsPath = "/system/bin/make_ext4fs";
 static const char* kFsckPath = "/system/bin/e2fsck";
 #endif
 
-static const char* privatePathPrefix = "/mnt/expand/";
-
 bool IsSupported() {
     return access(kMkfsPath, X_OK) == 0
             && access(kFsckPath, X_OK) == 0
