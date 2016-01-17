@@ -34,8 +34,6 @@ namespace f2fs {
 static const char* kMkfsPath = "/system/bin/mkfs.f2fs";
 static const char* kFsckPath = "/system/bin/fsck.f2fs";
 
-static const char* privatePathPrefix = "/mnt/expand/";
-
 bool IsSupported() {
     return access(kMkfsPath, X_OK) == 0
             && access(kFsckPath, X_OK) == 0
